@@ -214,6 +214,7 @@ dice_sizes = [2,3,4,6,8,10,12,20,100]
 dice_index = 7
 quantity = 1
 roll_total = None
+prev_roll_total = None
 
 current_verts, current_edges = shape_icosa_d20()
 proj_points = []
@@ -292,9 +293,18 @@ def draw_ui(w, h):
     w_val = roll_img.width * scale
     h_val = roll_img.height * scale
     x_val = (w - w_val) // 2
-    y_val = int((h - h_val) / 2)
+    y_val = int(0.20 * (h - h_val))
     screen.blit(roll_img, rect(x_val, y_val, w_val, h_val))
 
+  if prev_roll_total is not None:
+    s_val = str(prev_roll_total)
+    roll_img = get_roll_image(s_val)
+    scale = 1
+    w_val = roll_img.width * scale
+    h_val = roll_img.height * scale
+    x_val = ((w - w_val) // 2)
+    y_val =int( 0.80 * (h - h_val))
+    screen.blit(roll_img, rect(x_val, y_val, w_val, h_val))
 
 def rotate_and_draw(w, h, scale, now_ms):
   global angle_x, angle_y, hue
@@ -339,7 +349,7 @@ def rotate_and_draw(w, h, scale, now_ms):
 
 
 def update():
-  global dice_index, quantity, roll_total
+  global dice_index, quantity, roll_total, prev_roll_total
   global b_pressed_start, b_long_press_done, b_was_pressed
   global current_verts, current_edges, roll_end_time
 
@@ -352,20 +362,28 @@ def update():
   if io.BUTTON_C in io.pressed:
     dice_index = (dice_index + 1) % len(dice_sizes)
     current_verts, current_edges = get_shape_for_die(dice_sizes[dice_index])
+    roll_total = None
+    prev_roll_total = None
 
   if io.BUTTON_A in io.pressed:
     dice_index -= 1
     if dice_index < 0:
       dice_index = len(dice_sizes) - 1
     current_verts, current_edges = get_shape_for_die(dice_sizes[dice_index])
+    roll_total = None
+    prev_roll_total = None
 
   if io.BUTTON_UP in io.pressed:
     quantity += 1
+    roll_total = None
+    prev_roll_total = None
 
   if io.BUTTON_DOWN in io.pressed:
     quantity -= 1
     if quantity < 1:
       quantity = 1
+    roll_total = None
+    prev_roll_total = None
 
   # B: short roll, long reset
   b_now = io.BUTTON_B in io.held
@@ -379,13 +397,18 @@ def update():
         quantity = 1
         dice_index = dice_sizes.index(20)
         roll_total = None
+        prev_roll_total = None
         current_verts, current_edges = shape_icosa_d20()
         b_long_press_done = True
   else:
     if b_was_pressed:
       if not b_long_press_done:
         ds = dice_sizes[dice_index]
-        roll_total = do_roll(ds, quantity)
+        if roll_total is None:
+          roll_total = do_roll(ds, quantity)
+        else:
+          prev_roll_total = roll_total
+          roll_total = do_roll(ds, quantity)
         roll_end_time = now_ms + SPIN_DURATION_MS
       b_was_pressed = False
 
