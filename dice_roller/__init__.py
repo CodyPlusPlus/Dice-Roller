@@ -214,6 +214,7 @@ dice_sizes = [2,3,4,6,8,10,12,20,100]
 dice_index = 7
 quantity = 1
 roll_total = None
+rolls_list = []
 prev_roll_total = None
 
 current_verts, current_edges = shape_icosa_d20()
@@ -239,10 +240,10 @@ roll_cache_text = ""
 roll_cache_img = None
 
 def do_roll(ds, qt):
-  total = 0
+  rolls = []
   for _ in range(qt):
-    total += random.randint(1, ds)
-  return total
+    rolls.append(random.randint(1, ds))
+  return rolls
 
 
 def draw_text_with_shadow(txt, x, y):
@@ -283,21 +284,32 @@ def draw_ui(w, h):
   desc = f"{quantity}x d{dice_sizes[dice_index]}"
   w_desc, _ = screen.measure_text(desc)
   x_desc = (w - w_desc) // 2
-  y_desc = int(h * 0.86)
+  y_desc = int(h * 0.85)
   draw_text_with_shadow(desc, x_desc, y_desc)
 
   if roll_total is not None:
-    s_val = str(roll_total)
+    s_val = str(roll_total) +"!"
     roll_img = get_roll_image(s_val)
     scale = 2
     w_val = roll_img.width * scale
     h_val = roll_img.height * scale
     x_val = (w - w_val) // 2
-    y_val = int(0.20 * (h - h_val))
+    y_val = int(0.30 * (h - h_val))
     screen.blit(roll_img, rect(x_val, y_val, w_val, h_val))
 
+  if len(rolls_list) > 1: # dont need to show if there is only one die
+    screen.font = font_small
+    top_y = int(h * 0.05)
+    rolls_text = "+".join(str(v) for v in rolls_list) + "="
+    w_rolls, _ = screen.measure_text(rolls_text)
+    if w_rolls > int(w * 0.90):
+      rolls_text = " . . . "
+      w_rolls, _ = screen.measure_text(rolls_text)
+    x_rolls = (w - w_rolls) // 2
+    draw_text_with_shadow(rolls_text, x_rolls, top_y)
+
   if prev_roll_total is not None:
-    s_val = str(prev_roll_total)
+    s_val =  str(prev_roll_total) + "<<"
     roll_img = get_roll_image(s_val)
     scale = 1
     w_val = roll_img.width * scale
@@ -347,9 +359,14 @@ def rotate_and_draw(w, h, scale, now_ms):
 
   draw_ui(w, h)
 
+def reset_rolls():
+  global roll_total, prev_roll_total, rolls_list
+  roll_total = None
+  prev_roll_total = None
+  rolls_list = []
 
 def update():
-  global dice_index, quantity, roll_total, prev_roll_total
+  global dice_index, quantity, roll_total, prev_roll_total, rolls_list
   global b_pressed_start, b_long_press_done, b_was_pressed
   global current_verts, current_edges, roll_end_time
 
@@ -362,28 +379,24 @@ def update():
   if io.BUTTON_C in io.pressed:
     dice_index = (dice_index + 1) % len(dice_sizes)
     current_verts, current_edges = get_shape_for_die(dice_sizes[dice_index])
-    roll_total = None
-    prev_roll_total = None
+    reset_rolls()
 
   if io.BUTTON_A in io.pressed:
     dice_index -= 1
     if dice_index < 0:
       dice_index = len(dice_sizes) - 1
     current_verts, current_edges = get_shape_for_die(dice_sizes[dice_index])
-    roll_total = None
-    prev_roll_total = None
+    reset_rolls()
 
   if io.BUTTON_UP in io.pressed:
     quantity += 1
-    roll_total = None
-    prev_roll_total = None
+    reset_rolls()
 
   if io.BUTTON_DOWN in io.pressed:
     quantity -= 1
     if quantity < 1:
       quantity = 1
-    roll_total = None
-    prev_roll_total = None
+    reset_rolls()
 
   # B: short roll, long reset
   b_now = io.BUTTON_B in io.held
@@ -396,8 +409,7 @@ def update():
       if (now_ms - b_pressed_start) >= HOLD_THRESHOLD:
         quantity = 1
         dice_index = dice_sizes.index(20)
-        roll_total = None
-        prev_roll_total = None
+        reset_rolls()
         current_verts, current_edges = shape_icosa_d20()
         b_long_press_done = True
   else:
@@ -405,10 +417,12 @@ def update():
       if not b_long_press_done:
         ds = dice_sizes[dice_index]
         if roll_total is None:
-          roll_total = do_roll(ds, quantity)
+          rolls_list = do_roll(ds, quantity)
+          roll_total = sum(rolls_list)
         else:
           prev_roll_total = roll_total
-          roll_total = do_roll(ds, quantity)
+          rolls_list = do_roll(ds, quantity)
+          roll_total = sum(rolls_list)
         roll_end_time = now_ms + SPIN_DURATION_MS
       b_was_pressed = False
 
