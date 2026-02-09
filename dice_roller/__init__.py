@@ -230,10 +230,20 @@ roll_end_time = 0
 NORMAL_SPIN_SPEED = 0.02
 FAST_SPIN_SPEED = 0.12
 SPIN_DURATION_MS = 1000
+DEMO_HOLD_THRESHOLD = 3000
+DEMO_CYCLE_MS = 8000
 
 angle_x = 0.0
 angle_y = 0.0
 hue = 0.0
+
+# Demo mode
+demo_mode = False
+demo_hold_start = None
+demo_hold_done = False
+demo_start_time = 0
+demo_index = -1
+demo_order = [4, 6, 8, 10, 12, 20]
 
 # Scaled roll text cache
 roll_cache_text = ""
@@ -318,7 +328,7 @@ def draw_ui(w, h):
     y_val =int( 0.80 * (h - h_val))
     screen.blit(roll_img, rect(x_val, y_val, w_val, h_val))
 
-def rotate_and_draw(w, h, scale, now_ms):
+def rotate_and_draw(w, h, scale, now_ms, show_ui=True):
   global angle_x, angle_y, hue
   spin = FAST_SPIN_SPEED if (now_ms < roll_end_time) else NORMAL_SPIN_SPEED
 
@@ -357,7 +367,8 @@ def rotate_and_draw(w, h, scale, now_ms):
     x2, y2 = proj_points[j]
     screen.line(int(x1), int(y1), int(x2), int(y2))
 
-  draw_ui(w, h)
+  if show_ui:
+    draw_ui(w, h)
 
 def reset_rolls():
   global roll_total, prev_roll_total, rolls_list
@@ -369,11 +380,39 @@ def update():
   global dice_index, quantity, roll_total, prev_roll_total, rolls_list
   global b_pressed_start, b_long_press_done, b_was_pressed
   global current_verts, current_edges, roll_end_time
+  global demo_mode, demo_hold_start, demo_hold_done, demo_start_time, demo_index
 
   w = screen.width
   h = screen.height
   scale = min(w, h) * 0.23
   now_ms = io.ticks
+
+  # UP + DOWN: hold to toggle demo mode
+  demo_combo_now = (io.BUTTON_UP in io.held) and (io.BUTTON_DOWN in io.held)
+  if demo_combo_now:
+    if demo_hold_start is None:
+      demo_hold_start = now_ms
+      demo_hold_done = False
+    elif not demo_hold_done and (now_ms - demo_hold_start) >= DEMO_HOLD_THRESHOLD:
+      demo_mode = not demo_mode
+      demo_hold_done = True
+      if demo_mode:
+        demo_start_time = now_ms
+        demo_index = -1
+      else:
+        current_verts, current_edges = get_shape_for_die(dice_sizes[dice_index])
+  else:
+    demo_hold_start = None
+    demo_hold_done = False
+
+  if demo_mode:
+    elapsed = now_ms - demo_start_time
+    next_index = (elapsed // DEMO_CYCLE_MS) % len(demo_order)
+    if next_index != demo_index:
+      demo_index = next_index
+      current_verts, current_edges = get_shape_for_die(demo_order[demo_index])
+    rotate_and_draw(w, h, scale, now_ms, show_ui=False)
+    return
 
   # Buttons (edge-triggered)
   if io.BUTTON_C in io.pressed:
