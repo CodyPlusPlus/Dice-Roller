@@ -8,7 +8,7 @@ The last previously rolled total is displayed below the current total.
 The currently selected dice size and quantity are shown at the bottom.
 
 <h2>Controls</h2>
-<h3>Dice Size</h3>
+<h3>Dice size</h3>
 Pressing A will decrease size.
 Pressing B will increase size.
 <h3>Dice pool quantity</h3>
