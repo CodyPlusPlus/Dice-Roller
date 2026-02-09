@@ -68,7 +68,18 @@ def shape_prism_d3():
   return (verts, edges)
 
 def shape_tetra_d4():
-  verts = [(1,1,1),(1,-1,-1),(-1,1,-1),(-1,-1,1)]
+  # Regular tetrahedron: all 6 edges are equal.
+  base_r = 1.0
+  half_base_z = math.sqrt(3) / 2
+  tetra_h = math.sqrt(2)
+  base_y = -tetra_h / 4
+  apex_y = 3 * tetra_h / 4
+  verts = [
+    ( base_r, base_y, 0.0),
+    (-0.5,    base_y,  half_base_z),
+    (-0.5,    base_y, -half_base_z),
+    ( 0.0,    apex_y, 0.0)
+  ]
   edges = []
   for i in range(4):
     for j in range(i + 1, 4):
@@ -107,8 +118,8 @@ def shape_octa_d8():
 def shape_pentabip_d10():
   n = 5
   ring_r = 1.5
-  top_y = 1.8
-  bot_y = -1.8
+  top_y = 1.15
+  bot_y = -1.15
   ring_verts = []
   for i in range(n):
     theta = 2 * math.pi * i / n
@@ -216,6 +227,7 @@ quantity = 1
 roll_total = None
 rolls_list = []
 prev_roll_total = None
+show_prev_roll = False
 
 current_verts, current_edges = shape_icosa_d20()
 proj_points = []
@@ -225,6 +237,10 @@ HOLD_THRESHOLD = 1000
 b_pressed_start = None
 b_long_press_done = False
 b_was_pressed = False
+
+down_pressed_start = None
+down_long_press_done = False
+down_was_pressed = False
 
 roll_end_time = 0
 NORMAL_SPIN_SPEED = 0.02
@@ -289,7 +305,7 @@ def ensure_proj_points():
     proj_points = [[0.0, 0.0] for _ in range(n)]
 
 
-def draw_ui(w, h):
+def draw_ui(w, h, now_ms):
   screen.font = font_small
   desc = f"{quantity}x d{dice_sizes[dice_index]}"
   w_desc, _ = screen.measure_text(desc)
@@ -298,13 +314,16 @@ def draw_ui(w, h):
   draw_text_with_shadow(desc, x_desc, y_desc)
 
   if roll_total is not None:
-    s_val = str(roll_total) +"!"
+    s_val = str(roll_total)
+    if now_ms < roll_end_time:
+      s_val = " " + s_val + "!"
     roll_img = get_roll_image(s_val)
     scale = 2
     w_val = roll_img.width * scale
     h_val = roll_img.height * scale
     x_val = (w - w_val) // 2
-    y_val = int(0.30 * (h - h_val))
+    y_factor = 0.30 if show_prev_roll else 0.50
+    y_val = int(y_factor * (h - h_val))
     screen.blit(roll_img, rect(x_val, y_val, w_val, h_val))
 
   if len(rolls_list) > 1: # dont need to show if there is only one die
@@ -318,7 +337,7 @@ def draw_ui(w, h):
     x_rolls = (w - w_rolls) // 2
     draw_text_with_shadow(rolls_text, x_rolls, top_y)
 
-  if prev_roll_total is not None:
+  if show_prev_roll and prev_roll_total is not None:
     s_val =  str(prev_roll_total) + "<<"
     roll_img = get_roll_image(s_val)
     scale = 1
@@ -368,7 +387,7 @@ def rotate_and_draw(w, h, scale, now_ms, show_ui=True):
     screen.line(int(x1), int(y1), int(x2), int(y2))
 
   if show_ui:
-    draw_ui(w, h)
+    draw_ui(w, h, now_ms)
 
 def reset_rolls():
   global roll_total, prev_roll_total, rolls_list
@@ -377,8 +396,9 @@ def reset_rolls():
   rolls_list = []
 
 def update():
-  global dice_index, quantity, roll_total, prev_roll_total, rolls_list
+  global dice_index, quantity, roll_total, prev_roll_total, rolls_list, show_prev_roll
   global b_pressed_start, b_long_press_done, b_was_pressed
+  global down_pressed_start, down_long_press_done, down_was_pressed
   global current_verts, current_edges, roll_end_time
   global demo_mode, demo_hold_start, demo_hold_done, demo_start_time, demo_index
 
@@ -390,6 +410,10 @@ def update():
   # UP + DOWN: hold to toggle demo mode
   demo_combo_now = (io.BUTTON_UP in io.held) and (io.BUTTON_DOWN in io.held)
   if demo_combo_now:
+    # Cancel any pending DOWN single-button action while combo is active.
+    down_was_pressed = False
+    down_pressed_start = None
+    down_long_press_done = False
     if demo_hold_start is None:
       demo_hold_start = now_ms
       demo_hold_done = False
@@ -431,11 +455,25 @@ def update():
     quantity += 1
     reset_rolls()
 
-  if io.BUTTON_DOWN in io.pressed:
-    quantity -= 1
-    if quantity < 1:
-      quantity = 1
-    reset_rolls()
+  down_now = (io.BUTTON_DOWN in io.held) and (not demo_combo_now)
+  if down_now:
+    if not down_was_pressed:
+      down_pressed_start = now_ms
+      down_was_pressed = True
+      down_long_press_done = False
+    elif not down_long_press_done and (now_ms - down_pressed_start) >= HOLD_THRESHOLD:
+      show_prev_roll = not show_prev_roll
+      if not show_prev_roll:
+        prev_roll_total = None
+      down_long_press_done = True
+  else:
+    if down_was_pressed:
+      if not down_long_press_done:
+        quantity -= 1
+        if quantity < 1:
+          quantity = 1
+        reset_rolls()
+      down_was_pressed = False
 
   # B: short roll, long reset
   b_now = io.BUTTON_B in io.held
