@@ -74,11 +74,12 @@ def shape_tetra_d4():
   tetra_h = math.sqrt(2)
   base_y = -tetra_h / 4
   apex_y = 3 * tetra_h / 4
+  d4_scale = 1.4
   verts = [
-    ( base_r, base_y, 0.0),
-    (-0.5,    base_y,  half_base_z),
-    (-0.5,    base_y, -half_base_z),
-    ( 0.0,    apex_y, 0.0)
+    ( d4_scale * base_r, d4_scale * base_y, 0.0),
+    (-0.5 * d4_scale,    d4_scale * base_y,  d4_scale * half_base_z),
+    (-0.5 * d4_scale,    d4_scale * base_y, -d4_scale * half_base_z),
+    ( 0.0,               d4_scale * apex_y, 0.0)
   ]
   edges = []
   for i in range(4):
